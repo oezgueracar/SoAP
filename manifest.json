@@ -1,19 +1,18 @@
 {
   "manifest_version": 2,
-  "name": "Sick of American Politics (SoAP)",
+  "name": "Politics Filter",
   "version": "1.0",
   "description": "Replaces text related to American politics.",
-  "permissions": ["activeTab", "webRequest", "webRequestBlocking"],
+  "permissions": ["activeTab", "tabs", "storage"],
+  "background": {
+    "scripts": ["background.js"]
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["dist/content.bundle.js"]
     }
   ],
-  "background": {
-    "scripts": ["background.js"],
-    "persistent": false
-  },
   "browser_action": {
     "default_icon": "icon.png",
     "default_popup": "popup.html"
