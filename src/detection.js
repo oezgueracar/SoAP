@@ -3,7 +3,7 @@
 const keywords = ['American Politics', 'Trump', 'Biden', 'Kamala', 'Obama', 'White House'];
 const targetWords = ['american politics', 'trump', 'biden', 'obama', 'kamala'];
 
-let threshold = 0.6; // Cosine detection sensitivity; Higher means less sensitive
+let threshold = 0.85; // Cosine detection sensitivity; Higher means less sensitive
 
 let embeddings = {};
 
