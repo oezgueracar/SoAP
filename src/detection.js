@@ -1,7 +1,14 @@
 // detection.js
 
 const keywords = ['American Politics', 'Trump', 'Biden', 'Kamala', 'Obama', 'White House'];
-const targetWords = ['american politics', 'trump', 'biden', 'obama', 'kamala'];
+const targetWords = [
+  ['american', 'politics'],
+  ['trump'],
+  ['biden'],
+  ['obama'],
+  ['kamala'],
+  ['white', 'house']
+];
 
 let threshold = 0.85; // Cosine detection sensitivity; Higher means less sensitive
 
@@ -32,23 +39,43 @@ function getVector(word) {
 
 function calculateSimilarity(text, targetWords) {
   const words = text.split(/\W+/);
-  
-  for (const word of words) {
-    const wordVector = getVector(word);
-    if (wordVector) {
-      for (const targetWord of targetWords) {
-        const targetVector = getVector(targetWord);
-        if (targetVector) {
-          const score = cosineSimilarity(wordVector, targetVector);
-          console.log(`Word: "${word}" - Target: "${targetWord}" - Score: ${score}`);
-          if (score > threshold) {
-            return true; // If any word exceeds the threshold, consider it similar
+
+  for (const wordGroup of targetWords) {
+    let allAboveThreshold = false;
+
+    for (const targetWord of wordGroup) {
+      let wordAboveThreshold = false;
+
+      for (const word of words) {
+        const wordVector = getVector(word);
+        if (wordVector) {
+          const targetVector = getVector(targetWord);
+          if (targetVector) {
+            const score = cosineSimilarity(wordVector, targetVector);
+            console.log(`Word: "${word}" - Target: "${targetWord}" - Score: ${score}`);
+            if (score > threshold) {
+              wordAboveThreshold = true;
+              break; // Break inner loop if a target word exceeds threshold to continue checking next target word
+              // It could make more sense here that instead all target words need to exceeded the threshold for one single word... 
+            }
           }
         }
       }
+
+      if (!wordAboveThreshold) {
+        allAboveThreshold = false;
+        break; // Break if any word in the group does not exceed threshold
+      }
+
+      allAboveThreshold = true; // Set to true only if the current word exceeds the threshold
+    }
+
+    if (allAboveThreshold) {
+      return true; // If all words in the group exceed the threshold, consider it similar
     }
   }
-  return false; // No word exceeded the threshold
+  
+  return false; // No group of words exceeded the threshold
 }
 
 // Keyword Matching Method
