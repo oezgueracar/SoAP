@@ -1,8 +1,9 @@
 // detection.js
 
-const keywords = ['Trump', 'Biden', 'Kamala', 'Obama', 'White House'];
-const targetWords = ['american', 'politics', 'trump', 'biden', 'obama', 'kamala', 'white house'];
-const threshold = 0.6; // Adjust the threshold based on desired sensitivity
+const keywords = ['American Politics', 'Trump', 'Biden', 'Kamala', 'Obama', 'White House'];
+const targetWords = ['american politics', 'trump', 'biden', 'obama', 'kamala'];
+
+let threshold = 0.6; // Cosine detection sensitivity; Higher means less sensitive
 
 let embeddings = {};
 
@@ -20,7 +21,9 @@ function cosineSimilarity(vecA, vecB) {
   const dotProduct = vecA.reduce((sum, val, i) => sum + val * vecB[i], 0);
   const magnitudeA = Math.sqrt(vecA.reduce((sum, val) => sum + val * val, 0));
   const magnitudeB = Math.sqrt(vecB.reduce((sum, val) => sum + val * val, 0));
-  return dotProduct / (magnitudeA * magnitudeB);
+  const cosineSim = dotProduct / (magnitudeA * magnitudeB);
+  // Normalize the cosine similarity to be between 0 and 1
+  return (cosineSim + 1) / 2;
 }
 
 function getVector(word) {
@@ -29,27 +32,23 @@ function getVector(word) {
 
 function calculateSimilarity(text, targetWords) {
   const words = text.split(/\W+/);
-  let similarityScore = 0;
-  let count = 0;
-
-  words.forEach(word => {
+  
+  for (const word of words) {
     const wordVector = getVector(word);
     if (wordVector) {
-      targetWords.forEach(targetWord => {
+      for (const targetWord of targetWords) {
         const targetVector = getVector(targetWord);
         if (targetVector) {
           const score = cosineSimilarity(wordVector, targetVector);
           console.log(`Word: "${word}" - Target: "${targetWord}" - Score: ${score}`);
-          similarityScore += score;
-          count += 1;
+          if (score > threshold) {
+            return true; // If any word exceeds the threshold, consider it similar
+          }
         }
-      });
+      }
     }
-  });
-
-  const averageScore = count > 0 ? similarityScore / count : 0;
-  console.log(`Text: "${text}" - Average Similarity Score: ${averageScore}`);
-  return averageScore;
+  }
+  return false; // No word exceeded the threshold
 }
 
 // Keyword Matching Method
@@ -59,14 +58,13 @@ function keywordMatching(text) {
 
 // Cosine Similarity Method
 function cosineSimilarityDetection(text) {
-  return calculateSimilarity(text, targetWords) > threshold;
+  return calculateSimilarity(text, targetWords);
 }
 
 // Combined Method
 function combinedDetection(text) {
   const keywordMatch = keywordMatching(text);
-  const similarityScore = calculateSimilarity(text, targetWords);
-  const isCosineMatch = similarityScore > threshold;
+  const isCosineMatch = cosineSimilarityDetection(text);
 
   console.log(`Text: "${text}" - Keyword Match: ${keywordMatch} - Cosine Similarity Match: ${isCosineMatch}`);
 

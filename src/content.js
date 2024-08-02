@@ -75,8 +75,10 @@ function processTextNodes(node) {
       }
     }
   } else if (node.nodeType === 1 && node.childNodes && !/(script|style|textarea|input)/i.test(node.tagName)) {
-    for (let i = 0; i < node.childNodes.length; i++) {
-      processTextNodes(node.childNodes[i]);
+    if (!node.hasAttribute('data-processed')) {
+      for (let i = 0; i < node.childNodes.length; i++) {
+        processTextNodes(node.childNodes[i]);
+      }
     }
   }
 }
