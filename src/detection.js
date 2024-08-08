@@ -1,4 +1,4 @@
-// detection.js
+import * as tf from '@tensorflow/tfjs';
 
 const keywords = ['American Politics', 'Trump', 'Biden', 'Kamala', 'Obama', 'White House'];
 const targetWords = [
@@ -10,9 +10,15 @@ const targetWords = [
   ['white', 'house']
 ];
 
-let threshold = 0.85; // Cosine detection sensitivity; Higher means less sensitive
-
+let threshold = 0.85;
 let embeddings = {};
+let classifier = null;
+
+// Simple tokenizer function
+function simpleTokenizer(text) {
+  const tokens = text.toLowerCase().match(/\b(\w+)\b/g);
+  return tokens || [];
+}
 
 // Function to load embeddings
 function loadEmbeddings(callback) {
@@ -24,84 +30,113 @@ function loadEmbeddings(callback) {
     });
 }
 
+// Function to load the zero-shot classification model
+async function loadZeroShotModel(callback) {
+  try {
+    const modelUrl = browser.runtime.getURL('models/tfjs_model/model.json');
+    classifier = await tf.loadGraphModel(modelUrl);
+    console.log('Zero-shot classifier loaded.');
+    if (callback) callback();
+  } catch (error) {
+    console.error('Error loading zero-shot model:', error);
+  }
+}
+
+// Cosine similarity calculation
 function cosineSimilarity(vecA, vecB) {
   const dotProduct = vecA.reduce((sum, val, i) => sum + val * vecB[i], 0);
   const magnitudeA = Math.sqrt(vecA.reduce((sum, val) => sum + val * val, 0));
   const magnitudeB = Math.sqrt(vecB.reduce((sum, val) => sum + val * val, 0));
-  const cosineSim = dotProduct / (magnitudeA * magnitudeB);
-  // Normalize the cosine similarity to be between 0 and 1
-  return (cosineSim + 1) / 2;
+  return (dotProduct / (magnitudeA * magnitudeB) + 1) / 2;
 }
 
+// Get vector for a word
 function getVector(word) {
   return embeddings[word.toLowerCase()] || null;
 }
 
+// Calculate similarity
 function calculateSimilarity(text, targetWords) {
-  const words = text.split(/\W+/);
-
+  const words = simpleTokenizer(text);
   for (const wordGroup of targetWords) {
     let allAboveThreshold = false;
-
     for (const targetWord of wordGroup) {
       let wordAboveThreshold = false;
-
       for (const word of words) {
         const wordVector = getVector(word);
         if (wordVector) {
           const targetVector = getVector(targetWord);
           if (targetVector) {
             const score = cosineSimilarity(wordVector, targetVector);
-            console.log(`Word: "${word}" - Target: "${targetWord}" - Score: ${score}`);
             if (score > threshold) {
               wordAboveThreshold = true;
-              break; // Break inner loop if a target word exceeds threshold to continue checking next target word
-              // It could make more sense here that instead all target words need to exceeded the threshold for one single word... 
+              break;
             }
           }
         }
       }
-
       if (!wordAboveThreshold) {
         allAboveThreshold = false;
-        break; // Break if any word in the group does not exceed threshold
+        break;
       }
-
-      allAboveThreshold = true; // Set to true only if the current word exceeds the threshold
+      allAboveThreshold = true;
     }
-
     if (allAboveThreshold) {
-      return true; // If all words in the group exceed the threshold, consider it similar
+      return true;
     }
   }
-  
-  return false; // No group of words exceeded the threshold
+  return false;
 }
 
-// Keyword Matching Method
+// Zero-shot classification
+async function zeroShotClassification(text) {
+  if (!classifier) {
+    console.error('Zero-shot classifier is not loaded.');
+    return false;
+  }
+
+  const tokens = simpleTokenizer(text);
+  if (tokens.length === 0) {
+    return false; // Handle empty input
+  }
+
+  const inputIds = tokens.map(token => token.charCodeAt(0)); // Simple encoding
+  const attentionMask = inputIds.map(() => 1); // Create an attention mask
+
+  const inputIdsTensor = tf.tensor([inputIds], [1, inputIds.length], 'int32');
+  const attentionMaskTensor = tf.tensor([attentionMask], [1, attentionMask.length], 'int32');
+
+  const predictions = await classifier.executeAsync({
+    input_ids: inputIdsTensor,
+    attention_mask: attentionMaskTensor
+  });
+
+  const result = predictions.arraySync();
+  const score = result[0][0];
+  return score > threshold;
+}
+
+// Keyword matching
 function keywordMatching(text) {
   return keywords.some(keyword => new RegExp(`\\b${keyword}\\b`, 'i').test(text));
 }
 
-// Cosine Similarity Method
+// Cosine similarity detection
 function cosineSimilarityDetection(text) {
   return calculateSimilarity(text, targetWords);
 }
 
-// Combined Method
+// Combined detection method
 function combinedDetection(text) {
   const keywordMatch = keywordMatching(text);
   const isCosineMatch = cosineSimilarityDetection(text);
-
-  console.log(`Text: "${text}" - Keyword Match: ${keywordMatch} - Cosine Similarity Match: ${isCosineMatch}`);
-
   return keywordMatch || isCosineMatch;
 }
 
-// Function to set the threshold dynamically
+// Set threshold
 function setThreshold(newThreshold) {
   threshold = newThreshold;
   console.log(`New threshold set to: ${threshold}`);
 }
 
-module.exports = { loadEmbeddings, keywordMatching, cosineSimilarityDetection, combinedDetection, setThreshold };
+export { loadEmbeddings, loadZeroShotModel, keywordMatching, cosineSimilarityDetection, combinedDetection, zeroShotClassification, setThreshold };

@@ -1,0 +1,31 @@
+tensorflowjs_converter --input_format=tf_saved_model ./models/tf_model/saved_model ./models/tfjs_model
+
+Run the above command in cmd.
+
+To make it work is painful on windows:
+1. install WSL Ubuntu
+2. in there, do the following commands (make sure it installs python 3.10.12):
+    sudo apt-get update
+    sudo apt install python3 python3-pip
+    sudo apt install python3-venv
+    python3 -m venv tfjs
+    source tfjs/bin/activate
+    pip install tensorflowjs==4.9.0 tensorflow==2.13.0 tensorflow_decision_forests==1.5.0
+    pip install transformers
+    pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu
+
+3. cd to project directory
+4. run "download_zeroshot.py" if not run already
+5. run "convert_torch_to_tf.py" if not run already
+6. clean up the converted model's directory and make it look like this if it doesn't look like this already:
+    models/
+      tf_model/
+        saved_model/
+            assets/
+            variables/
+                variables.data-00000-of-00001
+                variables.index
+            saved_model.pb
+
+7. finally run the above command "tensorflowjs_converter --input_format=tf_saved_model ./models/tf_model/saved_model ./models/tfjs_model"
+8. you can delete the "tf_model" and "zero-shot-classification" directories now

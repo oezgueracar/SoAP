@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Politics Filter</title>
   <style>
     body { font-family: Arial, sans-serif; }
     #status { margin-top: 10px; color: red; display: none; }
+    #model-status { margin-top: 10px; color: blue; display: none; }
     #threshold-value { margin-left: 10px; }
     #threshold-slider-container { margin-top: 10px; }
   </style>
@@ -16,6 +19,7 @@
     <option value="keyword">Keyword Matching</option>
     <option value="cosine">Cosine Similarity</option>
     <option value="combined" selected>Combined</option>
+    <option value="zero-shot">Zero Shot Classification</option>
   </select>
   <div id="threshold-slider-container">
     <p>
@@ -25,6 +29,7 @@
     </p>
   </div>
   <div id="status">Changes will take effect after reloading the page.</div>
+  <div id="model-status">Downloading model, please wait...</div>
   <p>
     <button id="toggle-active">Deactivate</button>
   </p>

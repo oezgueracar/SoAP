@@ -1,13 +1,12 @@
-const { loadEmbeddings, keywordMatching, cosineSimilarityDetection, combinedDetection, setThreshold } = require('./detection.js');
+import { loadEmbeddings, loadZeroShotModel, keywordMatching, cosineSimilarityDetection, combinedDetection, zeroShotClassification, setThreshold } from './detection.js';
 
 const replacementText = 'Content Replaced. Click to reveal original content.';
-
 let detectionMethod = 'combined'; // Default to 'combined'
 let isActive = true; // Default to active
 let exemptedSites = [];
 
 // Load saved settings
-browser.storage.local.get(['detectionMethod', 'threshold', 'isActive', 'exemptedSites'], function (result) {
+browser.storage.local.get(['detectionMethod', 'threshold', 'isActive', 'exemptedSites'], async function (result) {
   if (result.detectionMethod) {
     detectionMethod = result.detectionMethod;
     console.log(`Loaded detection method: ${detectionMethod}`);
@@ -26,34 +25,39 @@ browser.storage.local.get(['detectionMethod', 'threshold', 'isActive', 'exempted
   }
 
   if (isActive && !isExemptedSite(window.location.hostname)) {
-    applyTextReplacement();
-    observer.observe(document.body, observerConfig);
+    if (detectionMethod === 'zero-shot') {
+      await loadZeroShotModel(applyTextReplacement);
+    } else {
+      loadEmbeddings(applyTextReplacement);
+    }
   }
 });
 
-// Function to check if the current site is exempted
+// Check if the current site is exempted
 function isExemptedSite(hostname) {
   return exemptedSites.some(site => hostname.includes(site));
 }
 
-// Function to decide if content should be censored
-function shouldCensorContent(text) {
+// Decide if content should be censored
+async function shouldCensorContent(text) {
   switch (detectionMethod) {
     case 'keyword':
       return keywordMatching(text);
     case 'cosine':
       return cosineSimilarityDetection(text);
+    case 'zero-shot':
+      return await zeroShotClassification(text);
     case 'combined':
     default:
       return combinedDetection(text);
   }
 }
 
-// Function to replace text within a container
-function replaceContainerContent(container) {
+// Replace text within a container
+async function replaceContainerContent(container) {
   if (!container.hasAttribute('data-processed')) {
     const originalHtml = container.innerHTML;
-    if (shouldCensorContent(originalHtml)) {
+    if (await shouldCensorContent(originalHtml)) {
       container.setAttribute('data-original-html', originalHtml);
       container.setAttribute('data-processed', 'true');
       container.innerHTML = replacementText;
@@ -64,26 +68,26 @@ function replaceContainerContent(container) {
   }
 }
 
-// Function to process text nodes
-function processTextNodes(node) {
+// Process text nodes
+async function processTextNodes(node) {
   if (node.nodeType === 3) { // Text node
     const text = node.nodeValue;
-    if (shouldCensorContent(text)) {
+    if (await shouldCensorContent(text)) {
       const container = findClosestContainer(node);
       if (container) {
-        replaceContainerContent(container);
+        await replaceContainerContent(container);
       }
     }
   } else if (node.nodeType === 1 && node.childNodes && !/(script|style|textarea|input)/i.test(node.tagName)) {
     if (!node.hasAttribute('data-processed')) {
       for (let i = 0; i < node.childNodes.length; i++) {
-        processTextNodes(node.childNodes[i]);
+        await processTextNodes(node.childNodes[i]);
       }
     }
   }
 }
 
-// Function to find the closest container
+// Find the closest container
 function findClosestContainer(node) {
   while (node && node.parentNode) {
     node = node.parentNode;
@@ -94,7 +98,7 @@ function findClosestContainer(node) {
   return null;
 }
 
-// Function to reveal the original content
+// Reveal the original content
 function revealOriginalContent(event) {
   event.preventDefault();
   event.stopPropagation();
@@ -104,7 +108,7 @@ function revealOriginalContent(event) {
   observer.observe(document.body, observerConfig); // Reconnect the observer after revealing content
 }
 
-// Function to recursively reveal the original content of a container and its children
+// Recursively reveal the original content of a container and its children
 function revealContentRecursively(container) {
   const originalHtml = container.getAttribute('data-original-html');
   if (originalHtml) {
@@ -119,9 +123,21 @@ function revealContentRecursively(container) {
   }
 }
 
-// Function to apply text replacement
-function applyTextReplacement() {
-  processTextNodes(document.body);
+// Apply text replacement
+async function applyTextReplacement() {
+  await processTextNodes(document.body);
+
+  // Create a MutationObserver to watch for changes in the DOM
+  observer = new MutationObserver(async (mutations) => {
+    for (let mutation of mutations) {
+      for (let node of mutation.addedNodes) {
+        await processTextNodes(node);
+      }
+    }
+  });
+
+  // Start observing the document body
+  observer.observe(document.body, observerConfig);
 }
 
 // Declare observer at the correct scope
@@ -133,28 +149,14 @@ const observerConfig = {
   subtree: true
 };
 
-// Initial replacement on page load after embeddings are loaded
-loadEmbeddings(() => {
-  if (isActive && !isExemptedSite(window.location.hostname)) {
-    applyTextReplacement();
-
-    // Create a MutationObserver to watch for changes in the DOM
-    observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach(node => processTextNodes(node));
-      });
-    });
-
-    // Start observing the document body
-    observer.observe(document.body, observerConfig);
-  }
-});
-
 // Listen for messages from the popup
-browser.runtime.onMessage.addListener((message) => {
-  if (message.action === 'setDetectionMethod' && ['keyword', 'cosine', 'combined'].includes(message.method)) {
+browser.runtime.onMessage.addListener(async (message) => {
+  if (message.action === 'setDetectionMethod' && ['keyword', 'cosine', 'zero-shot', 'combined'].includes(message.method)) {
     detectionMethod = message.method;
     console.log(`Detection method set to: ${message.method}`);
+    if (detectionMethod === 'zero-shot' && !classifier) {
+      await loadZeroShotModel();
+    }
   } else if (message.action === 'setThreshold' && typeof message.threshold === 'number') {
     setThreshold(message.threshold);
     console.log(`Threshold set to: ${message.threshold}`);
@@ -163,7 +165,11 @@ browser.runtime.onMessage.addListener((message) => {
     browser.storage.local.set({ isActive });
     console.log(`Active state set to: ${isActive}`);
     if (isActive && !isExemptedSite(window.location.hostname)) {
-      applyTextReplacement();
+      if (detectionMethod === 'zero-shot' && !classifier) {
+        await loadZeroShotModel(applyTextReplacement);
+      } else {
+        applyTextReplacement();
+      }
       observer.observe(document.body, observerConfig);
     } else {
       observer.disconnect();

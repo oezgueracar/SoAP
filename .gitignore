@@ -37,3 +37,6 @@ yarn-error.log*
 
 # exclude word embeddings
 glove_50d.json
+
+# exclude model
+models/
