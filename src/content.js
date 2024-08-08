@@ -154,7 +154,7 @@ browser.runtime.onMessage.addListener(async (message) => {
   if (message.action === 'setDetectionMethod' && ['keyword', 'cosine', 'zero-shot', 'combined'].includes(message.method)) {
     detectionMethod = message.method;
     console.log(`Detection method set to: ${message.method}`);
-    if (detectionMethod === 'zero-shot' && !classifier) {
+    if (detectionMethod === 'zero-shot' && !isZeroShotModelLoaded) {
       await loadZeroShotModel();
     }
   } else if (message.action === 'setThreshold' && typeof message.threshold === 'number') {
@@ -165,7 +165,7 @@ browser.runtime.onMessage.addListener(async (message) => {
     browser.storage.local.set({ isActive });
     console.log(`Active state set to: ${isActive}`);
     if (isActive && !isExemptedSite(window.location.hostname)) {
-      if (detectionMethod === 'zero-shot' && !classifier) {
+      if (detectionMethod === 'zero-shot' && !isZeroShotModelLoaded) {
         await loadZeroShotModel(applyTextReplacement);
       } else {
         applyTextReplacement();
