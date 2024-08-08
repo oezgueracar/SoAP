@@ -25,11 +25,7 @@ browser.storage.local.get(['detectionMethod', 'threshold', 'isActive', 'exempted
   }
 
   if (isActive && !isExemptedSite(window.location.hostname)) {
-    if (detectionMethod === 'zero-shot') {
-      await loadZeroShotModel(applyTextReplacement);
-    } else {
-      loadEmbeddings(applyTextReplacement);
-    }
+    loadEmbeddings(applyTextReplacement);
   }
 });
 
@@ -45,8 +41,6 @@ async function shouldCensorContent(text) {
       return keywordMatching(text);
     case 'cosine':
       return cosineSimilarityDetection(text);
-    case 'zero-shot':
-      return await zeroShotClassification(text);
     case 'combined':
     default:
       return combinedDetection(text);
@@ -151,12 +145,9 @@ const observerConfig = {
 
 // Listen for messages from the popup
 browser.runtime.onMessage.addListener(async (message) => {
-  if (message.action === 'setDetectionMethod' && ['keyword', 'cosine', 'zero-shot', 'combined'].includes(message.method)) {
+  if (message.action === 'setDetectionMethod' && ['keyword', 'cosine', 'combined'].includes(message.method)) {
     detectionMethod = message.method;
     console.log(`Detection method set to: ${message.method}`);
-    if (detectionMethod === 'zero-shot' && !isZeroShotModelLoaded) {
-      await loadZeroShotModel();
-    }
   } else if (message.action === 'setThreshold' && typeof message.threshold === 'number') {
     setThreshold(message.threshold);
     console.log(`Threshold set to: ${message.threshold}`);
@@ -165,11 +156,7 @@ browser.runtime.onMessage.addListener(async (message) => {
     browser.storage.local.set({ isActive });
     console.log(`Active state set to: ${isActive}`);
     if (isActive && !isExemptedSite(window.location.hostname)) {
-      if (detectionMethod === 'zero-shot' && !isZeroShotModelLoaded) {
-        await loadZeroShotModel(applyTextReplacement);
-      } else {
-        applyTextReplacement();
-      }
+      applyTextReplacement();
       observer.observe(document.body, observerConfig);
     } else {
       observer.disconnect();
